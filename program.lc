@@ -1,0 +1,49 @@
+// VARIABLES
+set name Edikan
+set x 10
+
+say(Welcome #name)
+
+// WHEN / ELSE
+when(#x > 5)
+    say(Big number)
+else
+    say(Small number)
+done
+
+// LOOP
+repeat(3)
+    say(Loop running)
+done
+
+// RANDOM
+set luck random(1,10)
+say(Luck number: #luck)
+
+// FUNCTION
+func greet
+    say(Hello from function)
+done
+
+call greet
+
+// INPUT
+set user input(Enter your name)
+say(#user joined)
+
+// LENGTH
+length(#user)
+
+// TYPE
+type(#luck)
+
+// SLEEP
+say(Waiting...)
+sleep(2)
+say(Done waiting)
+
+// CLEAR SCREEN
+// clear()
+
+// EXIT
+// exit()
