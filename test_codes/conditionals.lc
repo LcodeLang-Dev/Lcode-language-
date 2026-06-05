@@ -1,0 +1,41 @@
+// TEST 1: Simple when true
+set val 10
+when #val is greater than 5
+    say(Test 1 PASS - Condition true)
+else
+    say(Test 1 FAIL - Wrong branch)
+done
+
+// TEST 2: Simple when false
+set val2 3
+when #val2 is greater than 5
+    say(Test 2 FAIL - Wrong branch)
+else
+    say(Test 2 PASS - Condition false)
+done
+
+// TEST 3: Equal comparison
+set a 42
+set b 42
+when #a is equal to #b
+    say(Test 3 PASS - Equal works)
+else
+    say(Test 3 FAIL)
+done
+
+// TEST 4: Not equal comparison
+set x hello
+set y world
+when #x is not equal to #y
+    say(Test 4 PASS - Not equal works)
+else
+    say(Test 4 FAIL)
+done
+
+// TEST 5: Less than or equal
+set num 10
+when #num is less than or equal to 10
+    say(Test 5 PASS - Less than or equal works)
+else
+    say(Test 5 FAIL)
+done
