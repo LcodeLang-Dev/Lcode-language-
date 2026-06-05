@@ -1,0 +1,57 @@
+// LCODE MASTER TEST RUNNER
+// Run all test suites to validate the language implementation
+// This file imports and executes all test_codes individually
+
+say(========================================)
+say(LCODE LANGUAGE - MASTER TEST RUNNER v0.75)
+say(========================================)
+say()
+
+// TEST CATEGORY 1: VARIABLES
+say(>>> RUNNING: Variable Operations Tests)
+import test_codes/variables
+
+say()
+say(>>> RUNNING: Conditional Statements Tests)
+import test_codes/conditionals
+
+say()
+say(>>> RUNNING: Loop Operations Tests)
+import test_codes/loops
+
+say()
+say(>>> RUNNING: Task (Function) Operations Tests)
+import test_codes/tasks
+
+say()
+say(>>> RUNNING: Math Operations Tests)
+import test_codes/math
+
+say()
+say(>>> RUNNING: String Operations Tests)
+import test_codes/strings
+
+say()
+say(>>> RUNNING: List Operations Tests)
+import test_codes/lists
+
+say()
+say(>>> RUNNING: Cryptography Operations Tests)
+import test_codes/crypto
+
+say()
+say(>>> RUNNING: Input/Output Operations Tests)
+import test_codes/io
+
+say()
+say(>>> RUNNING: Additional Operations Tests)
+import test_codes/additional
+
+say()
+say(========================================)
+say(ALL TEST SUITES COMPLETED)
+say(========================================)
+say()
+say(Check above for any FAIL messages)
+say(If all tests show PASS, your Lcode implementation is working correctly!)
+say()
