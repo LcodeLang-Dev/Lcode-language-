@@ -1,0 +1,23 @@
+// TEST 1: Simple variable assignment
+set test1_var hello
+say(Test 1 - Simple assignment: #test1_var)
+
+// TEST 2: Numeric variable
+set test2_num 42
+say(Test 2 - Numeric: #test2_num)
+
+// TEST 3: Boolean variables
+set test3_yes yes
+set test3_no no
+say(Test 3 - Boolean yes: #test3_yes, no: #test3_no)
+
+// TEST 4: String concatenation
+set test4_a Hello
+set test4_b World
+test4_a combine test4_b into test4_result
+say(Test 4 - Combine: #test4_result)
+
+// TEST 5: Overwriting variable
+set test5 original
+set test5 updated
+say(Test 5 - Overwrite: #test5)
