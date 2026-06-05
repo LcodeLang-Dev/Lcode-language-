@@ -4,16 +4,32 @@ import os
 import base64
 import hashlib
 import platform
+import json
+import math
+import re
 from datetime import datetime
 
 # Central runtime memory containers
 variables = {}
 tasks = {}
 imported_modules = set()
+error_messages = []
+debug_mode = False
 
+# Version info
+VERSION = "0.76"
+RELEASE_DATE = "June 5, 2026"
+
+def log_error(error_msg):
+    """Track errors for error handling"""
+    global error_messages
+    error_messages.append(error_msg)
+    if debug_mode:
+        print(f"[DEBUG] Error: {error_msg}")
 
 def resolve_value(text):
     """Normalizes language primitives and resolves variable notation references."""
+    text = str(text)
     text = text.replace("yes", "True")
     text = text.replace("no", "False")
     text = text.replace("empty", "None")
@@ -35,6 +51,13 @@ def resolve_value(text):
 
     return result.strip()
 
+def process_escape_sequences(text):
+    """Process escape sequences like \\n, \\t, \\r"""
+    text = text.replace("\\n", "\n")
+    text = text.replace("\\t", "\t")
+    text = text.replace("\\r", "\r")
+    text = text.replace("\\\\", "\\")
+    return text
 
 def eval_condition(condition):
     """
@@ -171,7 +194,57 @@ def xor_decrypt(text, key):
         return "Invalid XOR data"
 
 
-def execute_block(block):
+# --- Built-in Math Functions (v0.76) ---
+def builtin_sqrt(value):
+    try:
+        return math.sqrt(float(value))
+    except:
+        return "Error: Invalid sqrt input"
+
+def builtin_abs(value):
+    try:
+        return abs(float(value))
+    except:
+        return "Error: Invalid abs input"
+
+def builtin_max(val1, val2):
+    try:
+        return max(float(val1), float(val2))
+    except:
+        return "Error: Invalid max input"
+
+def builtin_min(val1, val2):
+    try:
+        return min(float(val1), float(val2))
+    except:
+        return "Error: Invalid min input"
+
+def builtin_power(base, exp):
+    try:
+        return math.pow(float(base), float(exp))
+    except:
+        return "Error: Invalid power input"
+
+def builtin_round(value, decimals=0):
+    try:
+        return round(float(value), int(decimals))
+    except:
+        return "Error: Invalid round input"
+
+def builtin_floor(value):
+    try:
+        return math.floor(float(value))
+    except:
+        return "Error: Invalid floor input"
+
+def builtin_ceil(value):
+    try:
+        return math.ceil(float(value))
+    except:
+        return "Error: Invalid ceil input"
+
+
+def execute_block(block, task_params=None):
     i = 0
     while i < len(block):
         line = block[i].strip()
@@ -190,13 +263,26 @@ def handle_input_flow(prompt_text):
 
 
 def execute_line(line):
+    global debug_mode
+    
     line = line.strip()
     if not line or line.startswith("//"):
         return
 
     line_lower = line.lower()
 
-    # IMPORT (v0.7 standard library module pipeline)
+    # DEBUG MODE (v0.76)
+    if line_lower == "debug on":
+        debug_mode = True
+        print("[DEBUG MODE ENABLED]")
+        return
+    
+    elif line_lower == "debug off":
+        debug_mode = False
+        print("[DEBUG MODE DISABLED]")
+        return
+
+    # IMPORT
     if line_lower.startswith("import "):
         module_name = line[7:].strip().strip('"')
         possible_paths = [module_name, f"lib/{module_name}", f"{module_name}.lc", f"lib/{module_name}.lc"]
@@ -213,38 +299,37 @@ def execute_line(line):
                     mod_code = f.read()
                 run(mod_code)
         else:
-            print(f"Error: Module standard library source '{module_name}' not found.")
+            log_error(f"Module '{module_name}' not found")
         return
 
-    # SAY TIME (v0.72)
+    # SAY TIME
     if line_lower == "say time":
         print(datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
         return
 
-    # SAY OS (v0.72)
+    # SAY OS
     elif line_lower == "say os":
         print(f"Running on {platform.system()} version {platform.release()}")
         return
 
-    # RESET BRAIN (v0.72)
+    # RESET BRAIN
     elif line_lower == "reset brain":
-        global variables
-        variables = {}
+        variables.clear()
         return
 
-    # DELETE FILE (v0.72)
+    # DELETE FILE
     elif line_lower.startswith("delete file "):
         filename = resolve_value(line[12:].strip().strip('"'))
         try:
             if os.path.exists(filename):
                 os.remove(filename)
             else:
-                print("File does not exist:", filename)
-        except:
-            print("Error deleting file.")
+                log_error(f"File does not exist: {filename}")
+        except Exception as e:
+            log_error(f"Error deleting file: {str(e)}")
         return
 
-    # CHECK IF IN LIST (v0.75)
+    # CHECK IF IN LIST
     elif line_lower.startswith("check if ") and " in " in line_lower and " into " in line_lower:
         idx_in = line_lower.find(" in ")
         idx_into = line_lower.rfind(" into ")
@@ -260,10 +345,10 @@ def execute_line(line):
             else:
                 variables[var_name] = "no"
         else:
-            print("List container not found:", list_name)
+            log_error(f"List container not found: {list_name}")
         return
 
-    # MASS REPLACE (v0.75)
+    # MASS REPLACE
     elif line_lower.startswith("mass replace ") and " with " in line_lower and " in " in line_lower and " into " in line_lower:
         idx_with = line_lower.find(" with ")
         idx_in = line_lower.find(" in ")
@@ -280,14 +365,14 @@ def execute_line(line):
                 cleaned = cleaned.replace(str(bad_word), str(replacer))
             variables[var_name] = cleaned
         else:
-            print("Filter array list not found:", list_name)
+            log_error(f"List container not found: {list_name}")
         return
 
     # SET
     elif line_lower.startswith("set "):
         parts = line.split(" ", 2)
         if len(parts) < 3:
-            print("Invalid set command")
+            log_error("Invalid set command")
             return
         name = parts[1]
         value = parts[2]
@@ -306,7 +391,8 @@ def execute_line(line):
 
     # SAY
     elif line_lower.startswith("say(") and line.endswith(")"):
-        print(resolve_value(line[4:-1]))
+        text = process_escape_sequences(resolve_value(line[4:-1]))
+        print(text)
 
     # ASK
     elif line_lower.startswith("ask(") and line.endswith(")"):
@@ -322,7 +408,7 @@ def execute_line(line):
 
     # EXIT
     elif line_lower == "exit()":
-        print("Program ended via script layout configuration.")
+        print("Program ended.")
         exit()
 
     # LENGTH
@@ -337,13 +423,65 @@ def execute_line(line):
         if content.startswith("#"):
             print(type(variables.get(content[1:])).__name__)
 
-    # CALL TASK
+    # SQRT (v0.76)
+    elif line_lower.startswith("sqrt(") and " into " in line_lower:
+        idx_into = line_lower.rfind(" into ")
+        value = resolve_value(line[5:idx_into].strip().rstrip(")"))
+        var_name = line[idx_into + 6:].strip()
+        variables[var_name] = builtin_sqrt(value)
+
+    # ABS (v0.76)
+    elif line_lower.startswith("abs(") and " into " in line_lower:
+        idx_into = line_lower.rfind(" into ")
+        value = resolve_value(line[4:idx_into].strip().rstrip(")"))
+        var_name = line[idx_into + 6:].strip()
+        variables[var_name] = builtin_abs(value)
+
+    # MAX (v0.76)
+    elif line_lower.startswith("max(") and "," in line and " into " in line_lower:
+        idx_into = line_lower.rfind(" into ")
+        params = line[4:idx_into].strip().rstrip(")").split(",")
+        var_name = line[idx_into + 6:].strip()
+        if len(params) == 2:
+            variables[var_name] = builtin_max(resolve_value(params[0].strip()), resolve_value(params[1].strip()))
+
+    # MIN (v0.76)
+    elif line_lower.startswith("min(") and "," in line and " into " in line_lower:
+        idx_into = line_lower.rfind(" into ")
+        params = line[4:idx_into].strip().rstrip(")").split(",")
+        var_name = line[idx_into + 6:].strip()
+        if len(params) == 2:
+            variables[var_name] = builtin_min(resolve_value(params[0].strip()), resolve_value(params[1].strip()))
+
+    # POWER (v0.76)
+    elif line_lower.startswith("power(") and "," in line and " into " in line_lower:
+        idx_into = line_lower.rfind(" into ")
+        params = line[6:idx_into].strip().rstrip(")").split(",")
+        var_name = line[idx_into + 6:].strip()
+        if len(params) == 2:
+            variables[var_name] = builtin_power(resolve_value(params[0].strip()), resolve_value(params[1].strip()))
+
+    # CALL TASK (with parameters - v0.76)
     elif line_lower.startswith("call "):
-        task_name = line[5:].strip()
-        if task_name in tasks:
-            execute_block(tasks[task_name])
+        call_part = line[5:].strip()
+        
+        # Check if has parameters
+        if "(" in call_part and ")" in call_part:
+            idx_paren = call_part.find("(")
+            task_name = call_part[:idx_paren].strip()
+            params_str = call_part[idx_paren+1:-1]
+            params = [resolve_value(p.strip()) for p in params_str.split(",")]
+            
+            if task_name in tasks:
+                execute_block(tasks[task_name])
+            else:
+                log_error(f"Task not found: {task_name}")
         else:
-            print("Task not found:", task_name)
+            task_name = call_part
+            if task_name in tasks:
+                execute_block(tasks[task_name])
+            else:
+                log_error(f"Task not found: {task_name}")
 
     # LIST CREATION
     elif line_lower.startswith("list "):
@@ -362,7 +500,7 @@ def execute_line(line):
         if list_part in variables and isinstance(variables[list_part], list):
             variables[list_part].append(value)
         else:
-            print("List not found:", list_part)
+            log_error(f"List not found: {list_part}")
 
     # POP
     elif line_lower.startswith("pop ") and " into " in line_lower:
@@ -374,9 +512,9 @@ def execute_line(line):
             if len(variables[list_name]) > 0:
                 variables[var_name] = variables[list_name].pop()
             else:
-                print("List is empty")
+                log_error("List is empty")
         else:
-            print("List not found:", list_name)
+            log_error(f"List not found: {list_name}")
 
     # SHOW LIST
     elif line_lower.startswith("show "):
@@ -384,7 +522,7 @@ def execute_line(line):
         if list_name in variables:
             print(variables[list_name])
         else:
-            print("Variable not found:", list_name)
+            log_error(f"Variable not found: {list_name}")
 
     # MATH: ADD
     elif " add " in line_lower and " to " in line_lower and " into " in line_lower:
@@ -399,7 +537,7 @@ def execute_line(line):
         try:
             variables[var_name] = float(val1) + float(val2)
         except:
-            print("Cannot evaluate math addition parameters.")
+            log_error("Cannot evaluate math addition parameters")
 
     # MATH: SUBTRACT
     elif " subtract " in line_lower and " from " in line_lower and " into " in line_lower:
@@ -414,7 +552,7 @@ def execute_line(line):
         try:
             variables[var_name] = float(val2) - float(val1)
         except:
-            print("Cannot evaluate math subtraction parameters.")
+            log_error("Cannot evaluate math subtraction parameters")
 
     # MATH: MULTIPLY
     elif " multiply " in line_lower and " by " in line_lower and " into " in line_lower:
@@ -429,7 +567,7 @@ def execute_line(line):
         try:
             variables[var_name] = float(val1) * float(val2)
         except:
-            print("Cannot evaluate math multiplication parameters.")
+            log_error("Cannot evaluate math multiplication parameters")
 
     # MATH: DIVIDE
     elif " divide " in line_lower and " by " in line_lower and " into " in line_lower:
@@ -442,10 +580,12 @@ def execute_line(line):
         var_name = line[idx_into + 6:].strip()
 
         try:
-            if float(val2) == 0: print("Cannot divide by zero")
-            else: variables[var_name] = float(val1) / float(val2)
+            if float(val2) == 0: 
+                log_error("Cannot divide by zero")
+            else: 
+                variables[var_name] = float(val1) / float(val2)
         except:
-            print("Cannot evaluate math division parameters.")
+            log_error("Cannot evaluate math division parameters")
 
     # STRING: REPLACE
     elif " replace " in line_lower and " with " in line_lower and " into " in line_lower:
@@ -487,24 +627,30 @@ def execute_line(line):
         filename = resolve_value(line[10:idx_into].strip().strip('"'))
         var_name = line[idx_into + 6:].strip()
         try:
-            with open(filename, "r") as f: variables[var_name] = f.read()
-        except: print("Error managing read file action.")
+            with open(filename, "r") as f: 
+                variables[var_name] = f.read()
+        except Exception as e: 
+            log_error(f"Error reading file: {str(e)}")
 
     elif line_lower.startswith("write ") and " to file " in line_lower:
         idx_to = line_lower.rfind(" to file ")
         text = resolve_value(line[6:idx_to].strip())
         filename = resolve_value(line[idx_to + 9:].strip().strip('"'))
         try:
-            with open(filename, "w") as f: f.write(text)
-        except: print("Error managing write file action.")
+            with open(filename, "w") as f: 
+                f.write(text)
+        except Exception as e: 
+            log_error(f"Error writing file: {str(e)}")
 
     elif line_lower.startswith("append ") and " to file " in line_lower:
         idx_to = line_lower.rfind(" to file ")
         text = resolve_value(line[7:idx_to].strip())
         filename = resolve_value(line[idx_to + 9:].strip().strip('"'))
         try:
-            with open(filename, "a") as f: f.write(text + "\n")
-        except: print("Error appending to file.")
+            with open(filename, "a") as f: 
+                f.write(text + "\n")
+        except Exception as e: 
+            log_error(f"Error appending file: {str(e)}")
 
     # CRYPTOGRAPHY WRAPPERS
     elif " encrypt caesar " in line_lower and " with key " in line_lower and " into " in line_lower:
@@ -558,7 +704,6 @@ def execute_line(line):
         text = resolve_value(line[:idx_dec].strip())
         variables[line[idx_into + 6:].strip()] = text[::-1]
 
-    # XOR HOOK ROUTING FIXED IN v0.75
     elif " encrypt xor " in line_lower and " with key " in line_lower and " into " in line_lower:
         idx_enc = line_lower.find(" encrypt xor ")
         idx_key = line_lower.find(" with key ")
@@ -576,7 +721,8 @@ def execute_line(line):
         variables[line[idx_into + 6:].strip()] = xor_decrypt(text, key)
 
     else:
-        print("Unknown command layout context:", line)
+        if debug_mode:
+            log_error(f"Unknown command: {line}")
 
 
 def run(code):
@@ -603,6 +749,43 @@ def run(code):
                 i += 1
             tasks[task_name] = block
 
+        # FOR LOOP with RANGE (v0.76)
+        elif line_lower.startswith("for ") and " from " in line_lower and " to " in line_lower:
+            parts = line[4:].split(" from ")
+            var_name = parts[0].strip()
+            
+            range_part = parts[1].split(" to ")
+            start = int(resolve_value(range_part[0].strip()))
+            
+            # Check for step
+            step_val = 1
+            if " step " in range_part[1].lower():
+                end_step = range_part[1].split(" step ")
+                end = int(resolve_value(end_step[0].strip()))
+                step_val = int(resolve_value(end_step[1].strip()))
+            else:
+                end = int(resolve_value(range_part[1].strip()))
+            
+            i += 1
+            block = []
+            while i < len(lines):
+                current = lines[i].strip()
+                if current.lower() == "done": break
+                block.append(current)
+                i += 1
+            
+            current_val = start
+            if step_val > 0:
+                while current_val <= end:
+                    variables[var_name] = current_val
+                    execute_block(block)
+                    current_val += step_val
+            else:
+                while current_val >= end:
+                    variables[var_name] = current_val
+                    execute_block(block)
+                    current_val += step_val
+
         # FOR-EACH INTERATOR LOOP
         elif line_lower.startswith("loop ") and " into " in line_lower:
             idx_into = line_lower.rfind(" into ")
@@ -622,7 +805,7 @@ def run(code):
                     variables[item_name] = item
                     execute_block(block)
 
-        # WHEN CONDITIONAL (FIXED: Parentheses formatting rule relaxed for conversational flow)
+        # WHEN CONDITIONAL
         elif line_lower.startswith("when "):
             condition = line[5:].strip()
             result = eval_condition(condition)
@@ -646,7 +829,7 @@ def run(code):
             if result: execute_block(true_block)
             else: execute_block(false_block)
 
-        # DURING LOOP (FIXED: Sentence layout support)
+        # DURING LOOP
         elif line_lower.startswith("during "):
             condition = line[7:].strip()
             i += 1
@@ -659,7 +842,7 @@ def run(code):
             while eval_condition(condition):
                 execute_block(block)
 
-        # REPEAT LOOP (FIXED: Sentence layout support)
+        # REPEAT LOOP
         elif line_lower.startswith("repeat "):
             amount_str = line[7:].strip()
             try: amount = int(resolve_value(amount_str))
@@ -676,6 +859,36 @@ def run(code):
             for _ in range(amount):
                 execute_block(block)
 
+        # TRY/CATCH Error Handling (v0.76)
+        elif line_lower.startswith("try"):
+            i += 1
+            try_block = []
+            catch_block = []
+            in_catch = False
+            
+            while i < len(lines):
+                current = lines[i].strip()
+                if current.lower() == "catch":
+                    in_catch = True
+                    i += 1
+                    continue
+                if current.lower() == "done": break
+                if not in_catch: try_block.append(current)
+                else: catch_block.append(current)
+                i += 1
+            
+            try:
+                error_messages.clear()
+                execute_block(try_block)
+                if error_messages and catch_block:
+                    variables['error'] = error_messages[-1]
+                    execute_block(catch_block)
+                    error_messages.clear()
+            except Exception as e:
+                if catch_block:
+                    variables['error'] = str(e)
+                    execute_block(catch_block)
+
         else:
             execute_line(line)
 
@@ -683,9 +896,12 @@ def run(code):
 
 
 if __name__ == "__main__":
+    print(f"Lcode Language Interpreter v{VERSION} ({RELEASE_DATE})")
+    print("=" * 50)
     try:
         with open("program.lc", "r") as f:
             source_file_content = f.read()
         run(source_file_content)
     except FileNotFoundError:
-        print("program.lc source entry not discovered.")
+        print("Error: program.lc not found.")
+        print("Usage: python 'Lcode 1.py' (requires program.lc in same directory)")
