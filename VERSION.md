@@ -365,7 +365,7 @@ Current: **v0.76** (Pre-release, rapid feature development)
 
 ## License
 
-MIT License - Free for commercial and personal use
+Lcode official License - Authorized use only 
 
 See LICENSE file for full text.
 
