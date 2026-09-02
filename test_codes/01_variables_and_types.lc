@@ -1,0 +1,37 @@
+// TEST: Variables and Types (v0.76)
+// Tests variable assignment, resolution, and type checking
+
+say("=== TEST 1: Basic Variable Assignment ===")
+set myString "Hello, Lcode!"
+say(#myString)
+
+set myNumber 42
+say(#myNumber)
+
+set myBoolean yes
+say(#myBoolean)
+
+set myEmpty empty
+say(#myEmpty)
+
+say("=== TEST 2: Variable Types ===")
+type(#myString)
+type(#myNumber)
+type(#myBoolean)
+type(#myEmpty)
+
+say("=== TEST 3: Variable Resolution with # ===")
+set name "Alice"
+set greeting "Hello, "
+combine #greeting and #name into result
+say(#result)
+
+say("=== TEST 4: Type Conversion ===")
+set stringNumber "123"
+say(#stringNumber)
+
+say("=== TEST 5: Boolean Conversion ===")
+set affirmative yes
+set negative no
+say(#affirmative)
+say(#negative)
